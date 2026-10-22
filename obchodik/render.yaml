@@ -3,13 +3,12 @@ services:
     name: obchodik-fastapi
     runtime: python
     plan: free
+    rootDir: obchodik
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: DATABASE_URL
-        fromDatabase:
-          name: obchodik-postgres
-          property: connectionString
+        sync: false
       - key: ADMIN_USERNAME
         sync: false
       - key: ADMIN_PASSWORD
@@ -18,11 +17,3 @@ services:
         generateValue: true
       - key: RENDER
         value: "true"
-
-databases:
-  - name: obchodik-postgres
-    plan: basic-256mb
-    databaseName: obchodik
-    user: obchodik
-
-
