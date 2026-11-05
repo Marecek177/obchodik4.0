@@ -90,6 +90,22 @@ def csrf_token(request: Request) -> str:
         request.session["csrf_token"] = token
     return token
 
+# Funkcia na zoradenie produktov
+def zorad_produkty(produkty, podla, smer):
+    if podla == "nazov":
+        produkty = sorted(produkty, key=lambda p: p.nazov.lower())
+
+    elif podla == "cena":
+        produkty = sorted(produkty, key=lambda p: p.cena)
+
+    elif podla == "mnozstvo":
+        produkty = sorted(produkty, key=lambda p: p.mnozstvo)
+
+    if smer == "najvacsie":
+        produkty.reverse()
+
+    return produkty
+
 
 def csrf_is_valid(request: Request, token: str) -> bool:
     expected = request.session.get("csrf_token", "")
@@ -119,10 +135,28 @@ def cena_kosika(kosik: list[str]) -> float:
     return round(sum(sklad[nazov]["cena"] for nazov in kosik if nazov in sklad), 2)
 
 
-def obchod(request: Request, sprava: str = "", zlava: float = 0) -> HTMLResponse:
-    sklad = nacitaj_sklad()
+def obchod(request: Request, sprava: str = "", zlava: float = 0,
+           podla: str = "nazov", smer: str = "najmensie") -> HTMLResponse:
+
+    with Session(engine) as db:
+        produkty = db.scalars(select(Produkt)).all()
+
+    if podla not in ["nazov", "cena", "mnozstvo"]:
+        podla = "nazov"
+
+    if smer not in ["najmensie", "najvacsie"]:
+        smer = "najmensie"
+
+    produkty = zorad_produkty(produkty, podla, smer)
+
+    sklad = {
+        p.nazov: {"cena": float(p.cena), "mnozstvo": p.mnozstvo}
+        for p in produkty
+    }
+
     kosik = kosik_pouzivatela(request)
     cena = cena_kosika(kosik)
+
     return templates.TemplateResponse(
         request=request,
         name="index.html",
@@ -134,13 +168,16 @@ def obchod(request: Request, sprava: str = "", zlava: float = 0) -> HTMLResponse
             "finalna_cena": round(cena - zlava, 2),
             "sprava": sprava,
             "csrf_token": csrf_token(request),
+            "podla": podla,
+            "smer": smer,
         },
     )
 
 
 @app.get("/", response_class=HTMLResponse)
-def domov(request: Request):
-    return obchod(request)
+def domov(request: Request, podla: str = "nazov", smer: str = "najmensie"):
+    return obchod(request, podla=podla, smer=smer)
+
 
 
 @app.post("/pridat", response_class=HTMLResponse)
